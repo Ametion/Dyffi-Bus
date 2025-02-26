@@ -20,15 +20,15 @@
 ### Architecture Overview
 
 ```
-         [Publisher]     [Publisher]
-             |                 |
-             v                 v
-         (POST /publish)    (POST /publish)
-             \____________ ___________/
-                          |
+              [Publisher]        [Publisher]
+                   |                  |
+                   v                  v
+            (POST /publish)    (POST /publish)
+               \____________ ___________/
+                            |
                        [Dyffi-Bus]
                             |
-         [Subscriber]  [Subscriber] [Subscriber]
+         [Subscriber] [Subscriber] [Subscriber]
                |           |             |
                v           v             v
          (WebSocket)  (WebSocket)   (WebSocket)
@@ -95,18 +95,18 @@ This way, your logs will be stored on the host system even if the container is r
 
 ```python
 # example_sub.py
-from client import DyffiClient
+from client import DyffiBusClient
 
 def handle_message(message):
     print("Received:", message)
 
-client = DyffiClient("http://localhost:8000")
+client = DyffiBusClient("http://localhost:8000")
 client.subscribe("orders", handle_message, blocking=True)
 ```
 
 Run:
 ```bash
-python example_sub.py
+python app.py
 ```
 
 Then in another terminal:
