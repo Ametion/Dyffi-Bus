@@ -81,7 +81,7 @@ If you want to enable file-based logging, set environment variables when running
 And map a volume to persist logs on the host:
 
 ```bash
-docker run -d     -p 8000:8000     -e LOGGING_ENABLED=true     -e LOGS_FOLDER=/app/logs     -v /path/on/host/logs:/app/logs     --name dyffi-bus     flap1ks/dyffi-bus:latest
+docker run -d -p 8000:8000 -e LOGGING_ENABLED=true -e LOGS_FOLDER=/app/logs -v /path/on/host/logs:/app/logs --name dyffi-bus flap1ks/dyffi-bus:latest 
 ```
 
 This way, your logs will be stored on the host system even if the container is removed.
@@ -90,7 +90,7 @@ This way, your logs will be stored on the host system even if the container is r
 
 - **Docker** is the easiest way to deploy. Pull and run the image on your server or cloud instance.
 - **Kubernetes**: You can create a simple Deployment/Service YAML that pulls `flap1ks/dyffi-bus:latest` and exposes port 8000.
-
+ 
 ## Example: Using the Python Client
 
 ```python

@@ -1,4 +1,6 @@
 import asyncio
+import json
+from collections import defaultdict
 
 class CustomAsyncBroker:
     """
@@ -9,7 +11,9 @@ class CustomAsyncBroker:
 
     def __init__(self, decode_responses=True):
         self.decode_responses = decode_responses
-        self._subscribers = {}  # {channel: [LocalAsyncPubSub, ...]}
+        self._subscribers = {}  # {channel: [CustomAsyncPubSub, ...]}
+        # Store messages if no subscriber is around at publish-time
+        self._pending_messages = defaultdict(list)  # {channel: [message, ...]}
         self._lock = asyncio.Lock()
 
     @classmethod
@@ -20,21 +24,24 @@ class CustomAsyncBroker:
 
     async def publish(self, channel, message):
         async with self._lock:
-            if channel in self._subscribers:
-                # Make a copy to avoid issues if subscribers are removed mid‑loop
-                subscribers = list(self._subscribers[channel])
-                for pubsub in subscribers:
+            # Check if we currently have subscribers for this channel
+            if channel in self._subscribers and self._subscribers[channel]:
+                # Deliver to all existing subscribers
+                for pubsub in list(self._subscribers[channel]):
                     await pubsub.queue.put({
                         "type": "message",
                         "data": message,
                         "channel": channel
                     })
+            else:
+                # No subscribers yet, store in pending
+                self._pending_messages[channel].append(message)
 
     def pubsub(self):
         return CustomAsyncPubSub(self)
 
     async def close(self):
-        # Nothing to clean up in this in‑memory version
+        # Nothing to clean up in this in-memory version
         pass
 
     async def add_subscriber(self, channel, pubsub):
@@ -43,6 +50,23 @@ class CustomAsyncBroker:
                 self._subscribers[channel] = []
             self._subscribers[channel].append(pubsub)
 
+            # Отправляем все ранее накопленные сообщения новому подписчику
+            if channel in self._pending_messages:
+                for msg in self._pending_messages[channel]:
+                    await pubsub.queue.put({
+                        "type": "message",
+                        "data": msg,
+                        "channel": channel
+                    })
+                # ВАЖНО: не очищаем список, чтобы сообщения
+                #        были доступны для будущих подписчиков,
+                #        если это требуется вашей логикой.
+                #
+                # Если нужно, чтобы только первый подписчик получил историю,
+                # можно раскомментировать строку ниже:
+                #
+                # self._pending_messages[channel].clear()
+
     async def remove_subscriber(self, channel, pubsub):
         async with self._lock:
             if channel in self._subscribers and pubsub in self._subscribers[channel]:
@@ -50,9 +74,6 @@ class CustomAsyncBroker:
 
 
 class CustomAsyncPubSub:
-    """
-    A local, in-memory pub/sub class that mimics Redis pubsub.
-    """
     def __init__(self, broker: CustomAsyncBroker):
         self.broker = broker
         self.queue = asyncio.Queue()

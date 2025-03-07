@@ -27,7 +27,6 @@ async def websocket_endpoint(websocket: WebSocket, topic: str):
     local_broker = CustomAsyncBroker.get_instance()
 
     async def ws_handler(data):
-        # The handler is simply "send to WebSocket"
         await websocket.send_json(data)
 
     consumer = DyffiConsumer(topic, ws_handler, broker=local_broker)
