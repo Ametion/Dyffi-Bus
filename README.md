@@ -1,6 +1,6 @@
 # Dyffi-Bus
 
-**Dyffi-Bus** is a simple asynchronous Pub/Sub system built with FastAPI and an in-memory broker. It allows you to publish messages to topics, subscribe via WebSockets, and optionally log messages to JSON files.
+**Dyffi-Bus**  is a simple asynchronous pub/sub system built with FastAPI and an in-memory broker. It lets you publish messages to different topics, and multiple consumers can subscribe to receive those messages in real time. Everything is asynchronous, and you can switch to an external broker (like Redis) if your project grows. It supports WebSockets for browser or Python subscribers, and optionally logs all published messages to JSON files.
 
 ## Features
 
@@ -8,14 +8,16 @@
 - **Pub/Sub**: Publish messages to named topics; any subscribers to that topic receive them in real time.
 - **WebSocket Support**: Real-time message delivery to connected clients.
 - **Optional File Logging**: Can write published messages to JSON files for persistence.
+- **Topic Manager**: A centralized Topic Manager that handles all subscribers on a single topic
+
 
 ## How It Works
 
-1. **Broker**: An in-memory broker (`CustomAsyncBroker` or `LocalAsyncBroker`) holds subscriptions and distributes messages to subscribers.
-2. **FastAPI**: Exposes two main endpoints:
-   - `POST /publish` for publishing messages to a topic (JSON payload).
-   - `GET /ws/{topic}` (WebSocket) for subscribing to a topic and receiving messages.
-3. **Client Library**: An optional Python client (`DyffiClient`) can simplify publishing (via HTTP) and subscribing (via WebSocket).
+1. A broker handles subscribing, unsubscribing, and sending messages to clients.
+2. When you publish a message, it’s stored until a subscriber is ready.
+3. You publish by sending a POST request to /publish with a topic and payload.
+4. You receive messages by connecting to /ws/<topic> over WebSockets.
+5. This setup simplifies real-time communication between producers and consumers.
 
 ### Architecture Overview
 
@@ -26,7 +28,7 @@
             (POST /publish)    (POST /publish)
                \____________ ___________/
                             |
-                       [Dyffi-Bus]
+                      [Topic Manager]
                             |
          [Subscriber] [Subscriber] [Subscriber]
                |           |             |
@@ -36,24 +38,7 @@
 
 ## Usage
 
-### 1. Local (Without Docker)
-
-1. **Install Dependencies**:
-   ```bash
-   pip install -r requirements.txt
-   ```
-2. **Run**:
-   ```bash
-   uvicorn api:app --reload --port 8000
-   ```
-3. **Publish Messages** (Example with `curl`):
-   ```bash
-   curl -X POST -H "Content-Type: application/json"    -d '{"topic": "orders", "payload": {"order_id": 123, "customer": "Alice"}}'    http://127.0.0.1:8000/publish
-   ```
-4. **Subscribe**:
-   - Open a WebSocket connection to `ws://127.0.0.1:8000/ws/{TOPIC_NAME}` (for example, recommending using client lib `DyffiClient`).
-
-### 2. Docker
+### 1. Docker
 
 #### Pull the Image
 
@@ -64,7 +49,7 @@ docker pull flap1ks/dyffi-bus:latest
 #### Run a Container
 
 ```bash
-docker run -d     -p 8000:8000     --name dyffi-bus     flap1ks/dyffi-bus:latest
+docker run -d -p 8000:8000 --name dyffi-bus flap1ks/dyffi-bus:latest
 ```
 
 - Access the app at `http://localhost:8000`.
@@ -86,6 +71,28 @@ docker run -d -p 8000:8000 -e LOGGING_ENABLED=true -e LOGS_FOLDER=/app/logs -v /
 
 This way, your logs will be stored on the host system even if the container is removed.
 
+### 2. Local (Without Docker)
+
+1. **Clone Repository**:
+   ```bash
+   git clone https://github.com/Ametion/Dyffi-Bus.git
+   ```
+
+2. **Install Dependencies**:
+   ```bash
+   pip install -r requirements.txt
+   ```
+3. **Run**:
+   ```bash
+   uvicorn api:app --reload --port 8000
+   ```
+4. **Publish Messages** (Example with `curl`):
+   ```bash
+   curl -X POST -H "Content-Type: application/json"    -d '{"topic": "orders", "payload": {"order_id": 123, "customer": "Alice"}}'    http://127.0.0.1:8000/publish
+   ```
+5. **Subscribe**:
+   - Open a WebSocket connection to `ws://127.0.0.1:8000/ws/{TOPIC_NAME}` (for example, recommending using client lib `DyffiClient`).
+
 ## Deployment
 
 - **Docker** is the easiest way to deploy. Pull and run the image on your server or cloud instance.
@@ -93,8 +100,15 @@ This way, your logs will be stored on the host system even if the container is r
  
 ## Example: Using the Python Client
 
+### Installation
+
+```bash
+pip install dyffi_bus_client
+```
+
+### Usage (Subscribing to Topic)
+
 ```python
-# example_sub.py
 from client import DyffiBusClient
 
 def handle_message(message):
@@ -106,15 +120,26 @@ client.subscribe("orders", handle_message, blocking=True)
 
 Run:
 ```bash
-python app.py
+python subscription.py
 ```
 
-Then in another terminal:
+### Usage (Publishing to Topic)
+
+```python
+from client import DyffiBusClient
+
+client = DyffiBusClient("http://localhost:8000")
+
+message_id = client.publish("orders", {"order_id": 123, "customer": "Alice"})
+print("Sent message with ID:", message_id)
+```
+
+Run:
 ```bash
-curl -X POST -H "Content-Type: application/json" -d '{"topic": "orders", "payload": {"order_id": 123}}' http://localhost:8000/publish
+python publishing.py
 ```
 
-Your `handle_message` function will print the message immediately.
+### Now you can see the message published in the terminal where you ran the subscription script.
 
 ## Contributing
 
